@@ -1,0 +1,9 @@
+ldi R0 -120
+mov R0 R1
+add R2 R0 R1
+loop:
+eq R3 R0 R1
+prr R0
+stm loop R0
+nop
+hlt

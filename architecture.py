@@ -1,7 +1,6 @@
 NUM_REG = 8  # number of registers
 RAM_LEN = 256  # number of words in RAM
 SIZE_LIM = 256 # program size limit: 256 instructions
-# MISSING: enforce instruction width (4B); do assert len(args) == 3 in Assembler.compile()
 
 OPS = {
     "hlt": {"code": 0x1, "fmt": "___"}, # Halt program

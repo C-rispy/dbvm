@@ -1,22 +1,49 @@
 import sys
-from architecture import OPS, NUM_REG, OP_SHIFT
+from architecture import OPS, NUM_REG, OP_SHIFT, OP_MASK, RAM_LEN
 
 class Assembler:
-    def __init__(self,program):
-        self._program = program
+    def __init__(self):
         self._reg = ["R"+str(i) for i in range(NUM_REG)]
-        instructions = self._get_instructions()
-        compiled = [self._compile(instr) for instr in instructions]
 
-    def _get_instructions(self):
-        instructions = [ln.strip() for ln in self._program if ln]
+    def assemble(self,lines):
+        instructions = self._get_instructions(lines)
+        self._labels = {}
+        counter = 0
+        for ln in instructions:
+            if ln.endswith(":"):
+                self._labels[ln[:-1]] = counter
+            else:
+                counter += 1
+
+        compiled = [self._compile(i,instr) for i,instr in enumerate(instructions) if not instr.endswith(":")]
+        return compiled
+
+    def _get_instructions(self,lines):
+        instructions = [ln.strip() for ln in lines if ln]
         instructions = [ln for ln in instructions if not self._iscomment(ln)]
+        return instructions
 
-    def _compile(self,instr):
+    def _compile(self,index,instr):
+        print(f"{index}. line is getting compiled")
+        instr = instr.replace(","," ") # comma handling
         tokens = instr.split()
         op_code = tokens[0]
+        
         assert op_code in OPS, f"{op_code} is invalid for this assembler"
-        args = tokens[1:] if len(tokens) > 0 else None
+        args = tokens[1:]
+
+        for i,a in enumerate(args): # label handling
+            if a in self._reg:
+                continue
+            if a in self._labels.keys():
+                args[i] = self._labels[a]
+                continue
+            try:
+                int(a,0)
+                continue
+            except ValueError:
+                raise AssertionError(f"Unknown symbol/operand {a} on line {index}: {instr}")
+
         fmt = OPS[op_code]['fmt']
         code = OPS[op_code]['code']
 
@@ -40,25 +67,68 @@ class Assembler:
         return self._encode(code)
 
     def _emit_r__(self,args,code):
-        arg0 = args[0]
-        assert arg0 in self._reg, f"Register index out of range"
-        r = self._reg.index(arg0)
+        assert len(args) == 1, f"Wrong number of args passed!"
+        assert args[0] in self._reg, f"Register index out of range"
+        r = self._reg.index(args[0])
         return self._encode(r, code)
 
     def _emit_a__(self,args,code):
+        assert len(args) == 1, f"Wrong number of args passed!"
+        try:
+            a = int(args[0])
+        except ValueError:
+            a = int(args[0],16) # handle getting passed a memory address in hexadecimal
+        assert a < RAM_LEN and a >= 0, f"Memory address out of range"
+        return self._encode(a, code)
+    
+    def _emit_rr_(self,args,code):
+        assert len(args) == 2, f"Wrong number of args passed!"
+        assert args[0] in self._reg and args[1] in self._reg, f"Register index out of range"
+        rd = self._reg.index(args[0])
+        ra = self._reg.index(args[1])
+        return self._encode(ra, rd, code)
         
-
     def _emit_rv_(self,args,code):
-        pass
+        assert len(args) == 2, f"Wrong number of args passed!"
+        assert args[0] in self._reg, f"Register index out of range"
+        r = self._reg.index(args[0])
+        try:
+            v = int(args[1])
+        except ValueError:
+            v = int(args[1],16)
+        assert v <= 127 and v >= -128, f"Passed imm8 {v} is supposed to be between -128 and 127!"
+        v = v & OP_MASK
+        return self._encode(v, r, code)
 
     def _emit_ra_(self,args,code):
-        pass
+        assert len(args) == 2, f"Wrong number of args passed!"
+        assert args[0] in self._reg, f"Register index out of range"
+        r = self._reg.index(args[0])
+        try:
+            a = int(args[1])
+        except ValueError:
+            a = int(args[1],16)
+        assert a < RAM_LEN and a >= 0, f"Memory address out of range"
+        return self._encode(a, r, code)
 
     def _emit_ar_(self,args,code):
-        pass
+        assert len(args) == 2, f"Wrong number of args passed!"
+        try:
+            a = int(args[0])
+        except ValueError:
+            a = int(args[0],16)
+        assert a < RAM_LEN and a >= 0, f"Memory address out of range"
+        assert args[1] in self._reg, f"Register index out of range"
+        r = self._reg.index(args[1])
+        return self._encode(r, a, code)
 
     def _emit_rrr(self,args,code):
-        pass
+        assert len(args) == 3, f"Wrong number of args passed!"
+        assert args[0] in self._reg and args[1] in self._reg and args[2] in self._reg, f"Register index out of range"
+        rd = self._reg.index(args[0])
+        ra = self._reg.index(args[1])
+        rb = self._reg.index(args[2])
+        return self._encode(rb, ra, rd, code)
 
 
 def main():
@@ -66,8 +136,11 @@ def main():
     assert sys.argv[1].endswith(".dasm") or sys.argv[1] == '-', f"Wrong input format. Needs to be .dasm file"
     reader = open(sys.argv[1],"r") if sys.argv[1] != "-" else sys.stdin
     writer = open(sys.argv[2],"w") if sys.argv[2] != "-" else sys.stdout
-    program = reader.readlines()
-    assembler = Assembler(program)
+    lines = reader.readlines()
+    assembler = Assembler()
+    program = assembler.assemble(lines)
+    for instruction in program:
+        print(f"{instruction & 0xFFFFFFFF:08x}", file=writer)
 
 
 if __name__ == '__main__':
