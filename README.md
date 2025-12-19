@@ -80,21 +80,116 @@ Example output:
 02000107
 ```
 
----
+## Assembly Grammar (`.dasm`)
 
-## Example
+This assembler accepts a small, intentionally strict assembly language. Anything outside this grammar is rejected with a clear error. However, the assembler has been built to be easily extensible.
 
-Input (`example.dasm`):
+### General Rules
+- Assembly files are plain UTF-8 text.
+- Parsing is line-based: each line contains at most one label and/or one instruction.
+- Whitespace is flexible: extra spaces and tabs are allowed.
+- Comments are stripped before parsing and do not affect instruction addresses.
 
+### Comments
+- A comment starts with `#` and runs to the end of the line.
+- Full-line comments and trailing comments are allowed.
+
+Example:
+```asm
+# full line comment
+ADD R1, R2, R3   # trailing comment
 ```
+
+### Labels
+- A label defines a symbolic name for an instruction address.
+- Label names are case-sensitive.
+- A label may not contain whitespace or `:`.
+- At most **one label per line** is allowed.
+
+Valid forms:
+```asm
 loop:
-    ldi R0 -120
-    prr R0
-    beq R0 loop
-    hlt
+loop: ADD R1, R2, R3
 ```
 
-Assembly resolves `loop` to instruction address `0` and emits machine code with that address encoded directly.
+Invalid forms:
+```asm
+a:b: ADD R1, R2, R3    # multiple labels
+: ADD R1, R2, R3       # empty label
+```
+
+Whitespace around the colon is allowed:
+```asm
+loop : ADD R1, R2, R3
+```
+
+### Instructions
+- Instructions consist of a mnemonic followed by zero or more operands.
+- Operands are separated by commas or whitespace.
+- Each line contains at most one instruction.
+
+General form:
+```
+MNEMONIC arg1, arg2, arg3
+```
+
+Example:
+```asm
+ADD R0, R1, R2
+```
+
+### Registers
+- Registers are named `R0` through `R7`.
+- Any other register name is invalid.
+
+Example:
+```asm
+MOV R1, R0
+```
+
+### Immediates
+- Immediate values may be:
+  - decimal (e.g. `42`, `-7`)
+  - hexadecimal with `0x` prefix (e.g. `0xFF`)
+- Signed immediates must fit in 8 bits (`-128 .. 127`).
+
+Example:
+```asm
+LDI R0, -7
+LDI R1, 0x7F
+```
+
+### Memory Addresses
+- Memory addresses are unsigned integers in the range `0 .. 255`.
+- Addresses may be decimal or hexadecimal.
+
+Example:
+```asm
+LDM R0, 10
+STM 0x20, R1
+```
+
+### Labels as Operands
+- Labels may be used wherever an instruction expects an address (e.g. jumps).
+- All labels must be defined somewhere in the file.
+
+Example:
+```asm
+JMP loop
+JNZ R0, done
+```
+
+### Invalid Programs
+The assembler rejects programs that contain:
+- unknown mnemonics
+- invalid registers
+- immediates or addresses out of range
+- undefined labels
+- multiple labels on one line
+- malformed instructions
+
+Errors are reported with clear messages indicating the offending line.
+
 
 ---
 
