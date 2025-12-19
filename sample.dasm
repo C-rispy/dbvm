@@ -1,9 +1,4 @@
-ldi R0 -120
-mov R0 R1
-add R2 R0 R1
-loop:
-eq R3 R0 R1
-prr R0
-stm loop R0
-nop
-hlt
+loop: add R1, R1, R2 # bump: and comment colon
+loop2: jnz R1, loop # jump back
+ # pure comment
+done: hlt

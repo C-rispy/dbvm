@@ -6,26 +6,55 @@ class Assembler:
         self._reg = ["R"+str(i) for i in range(NUM_REG)]
 
     def assemble(self,lines):
-        instructions = self._get_instructions(lines)
+        instructions = self._get_instructions(lines) # from here on out, the comment are stripped
+
         self._labels = {}
         counter = 0
         for ln in instructions:
+
             if ln.endswith(":"):
-                self._labels[ln[:-1]] = counter
+                new_ln = ln.split(":")
+                new_ln[0] = new_ln[0].strip()
+                assert len(new_ln) <= 2, f"Too many labels in one line: {ln}"
+                self._labels[new_ln[0]] = counter
+
+            elif ":" in ln:
+                new_ln = ln.split(":")
+                new_ln[0] = new_ln[0].strip()
+                assert len(new_ln) <= 2, f"Too many labels in one line: {ln}"
+
+                self._labels[new_ln[0]] = counter
+                counter += 1
+
             else:
                 counter += 1
 
-        compiled = [self._compile(i,instr) for i,instr in enumerate(instructions) if not instr.endswith(":")]
+        compiled = []
+        for instr in instructions:
+            if instr.endswith(":"):
+                continue
+            elif ":" in instr:
+                new_instr = instr.split(":")
+                assert len(new_instr) <= 2, f"Too many labels in one instruction: {instr}" # not sttrictly necessary, but we want to have each pass debuggable on its own
+                new_instr[1] = new_instr[1].strip()
+                compiled.append(self._compile(new_instr[1]))
+            else:
+                compiled.append(self._compile(instr))
+
         return compiled
 
     def _get_instructions(self,lines):
-        instructions = [ln.strip() for ln in lines if ln]
-        instructions = [ln for ln in instructions if not self._iscomment(ln)]
+        instructions = []
+        for ln in lines:
+            instr = self._iscomment(ln)
+            if instr == "":
+                continue
+            instructions.append(instr)
         return instructions
 
-    def _compile(self,index,instr):
-        print(f"{index}. line is getting compiled")
+    def _compile(self,instr):
         instr = instr.replace(","," ") # comma handling
+        instr = instr.strip() # in case comma was at the end and there is now a trailing whitespace
         tokens = instr.split()
         op_code = tokens[0]
         
@@ -36,13 +65,13 @@ class Assembler:
             if a in self._reg:
                 continue
             if a in self._labels.keys():
-                args[i] = self._labels[a]
+                args[i] = str(self._labels[a]) # keep operands as strings so emitters can parse uniformly
                 continue
             try:
-                int(a,0)
+                int(a,0) # see if it's an imm8 (int(a,0) works for decimal and hex)
                 continue
             except ValueError:
-                raise AssertionError(f"Unknown symbol/operand {a} on line {index}: {instr}")
+                raise AssertionError(f"Unknown symbol/operand {a} in {instr}")
 
         fmt = OPS[op_code]['fmt']
         code = OPS[op_code]['code']
@@ -61,7 +90,12 @@ class Assembler:
         return result
 
     def _iscomment(self,ln):
-        return ln.startswith("#")
+        if "#" in ln:
+            new_ln = ln.split("#", maxsplit = 1)
+            new_ln[0] = new_ln[0].strip()
+            return new_ln[0] # returns "" if line starts with "#"
+        else:
+            return ln.strip()
     
     def _emit____(self,args,code):
         return self._encode(code)
@@ -74,10 +108,7 @@ class Assembler:
 
     def _emit_a__(self,args,code):
         assert len(args) == 1, f"Wrong number of args passed!"
-        try:
-            a = int(args[0])
-        except ValueError:
-            a = int(args[0],16) # handle getting passed a memory address in hexadecimal
+        a = int(args[0],0)
         assert a < RAM_LEN and a >= 0, f"Memory address out of range"
         return self._encode(a, code)
     
@@ -92,10 +123,7 @@ class Assembler:
         assert len(args) == 2, f"Wrong number of args passed!"
         assert args[0] in self._reg, f"Register index out of range"
         r = self._reg.index(args[0])
-        try:
-            v = int(args[1])
-        except ValueError:
-            v = int(args[1],16)
+        v = int(args[1],0)
         assert v <= 127 and v >= -128, f"Passed imm8 {v} is supposed to be between -128 and 127!"
         v = v & OP_MASK
         return self._encode(v, r, code)
@@ -104,19 +132,13 @@ class Assembler:
         assert len(args) == 2, f"Wrong number of args passed!"
         assert args[0] in self._reg, f"Register index out of range"
         r = self._reg.index(args[0])
-        try:
-            a = int(args[1])
-        except ValueError:
-            a = int(args[1],16)
+        a = int(args[1],0)
         assert a < RAM_LEN and a >= 0, f"Memory address out of range"
         return self._encode(a, r, code)
 
     def _emit_ar_(self,args,code):
         assert len(args) == 2, f"Wrong number of args passed!"
-        try:
-            a = int(args[0])
-        except ValueError:
-            a = int(args[0],16)
+        a = int(args[0],0)
         assert a < RAM_LEN and a >= 0, f"Memory address out of range"
         assert args[1] in self._reg, f"Register index out of range"
         r = self._reg.index(args[1])
