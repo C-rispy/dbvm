@@ -1,16 +1,15 @@
-# DBVM — A Minimal Assembler and Instruction Set
+# DBVM — A Minimal Assembler and Virtual Machine
 
-DBVM is a systems programming project focused on building a **simple instruction set architecture (ISA)**, a **two-pass assembler** and a **virtual machine**.
+DBVM is a systems programming project focused on building a **simple instruction set architecture (ISA)**, a **two-pass assembler**, and a **virtual machine**.
 
-The goal is not performance or completeness, but conceptual clarity: understanding how assembly code is translated into machine instructions.
+The goal is not performance or completeness, but conceptual clarity: understanding how assembly code is translated into machine instructions and how those instructions are executed at runtime.
 
 At its current stage, the project implements:
 
 * a small, explicit **instruction set definition**
 * a **two-pass assembler with label resolution**
-* a deterministic, VM-friendly machine code output format
-
-A virtual machine / executor is planned but **not yet implemented**.
+* a **virtual machine (VM)** with dynamic dispatch
+* a VM-friendly machine code format
 
 ---
 
@@ -19,7 +18,8 @@ A virtual machine / executor is planned but **not yet implemented**.
 ```
 .
 ├── architecture.py   # Instruction set architecture definition
-├── assembler.py      # Two-pass assembler
+├── assembler.py      # Two-pass assembler (.dasm → .dmx)
+├── vm.py             # Virtual machine / bytecode executor
 ```
 
 ---
@@ -30,34 +30,35 @@ The ISA is intentionally minimal and explicit.
 
 Key properties:
 
-* **Fixed-width instructions** (32-bit words)
-* **Opcode in the lowest byte**
+* Fixed-width instructions (32-bit words)
+* Opcode stored in the lowest byte
 * Operands packed into higher bytes
-* Small, fixed register file (`R0 ... R{N-1}`)
-* Byte-addressed RAM with bounded size
+* Small, fixed register file (`R0 ... R7`)
+* Fixed-size RAM (256 words)
+* Deterministic execution model
 
-Instruction encodings, operand formats, and constants are defined centrally in `architecture.py`, and are consumed by the assembler.
+Instruction encodings, operand formats, and constants are defined centrally in `architecture.py`, and are consumed by both the assembler and the VM.
 
 ---
 
 ## Assembler (`assembler.py`)
 
-The assembler translates `.dasm` assembly files into machine code suitable for execution by a future virtual machine.
+The assembler translates `.dasm` assembly files into machine code suitable for execution by the DBVM virtual machine.
 
 ### Design highlights
 
 * **Two-pass assembly**
 
-  * **Pass 1:** Resolve labels to instruction addresses (program counter values)
+  * **Pass 1:** Resolve labels to instruction addresses
   * **Pass 2:** Encode instructions using numeric operands
 * **Label support**
 
   * Labels (`label:`) name instruction addresses
-  * Labels are resolved at assembly time and do not appear in output
+  * Inline labels (`label: INSTR`) are supported
 * **Flexible syntax**
 
-  * Commas are treated as whitespace
-    (`add R0,R1,R2` ≡ `add R0 R1 R2`)
+  * Commas are treated as whitespace  
+    (`ADD R0,R1,R2` ≡ `ADD R0 R1 R2`)
 * **Immediate handling**
 
   * Signed 8-bit immediates (`-128 .. 127`)
@@ -69,7 +70,7 @@ The assembler translates `.dasm` assembly files into machine code suitable for e
 ### Output format
 
 * One instruction per line
-* **Zero-padded 8-digit hexadecimal**
+* Zero-padded 8-digit hexadecimal
 * Each line represents a full 32-bit instruction word
 
 Example output:
@@ -80,9 +81,11 @@ Example output:
 02000107
 ```
 
+---
+
 ## Assembly Grammar (`.dasm`)
 
-This assembler accepts a small, intentionally strict assembly language. Anything outside this grammar is rejected with a clear error. However, the assembler has been built to be easily extensible.
+This assembler accepts a small, intentionally strict assembly language. Anything outside this grammar is rejected with a clear error.
 
 ### General Rules
 - Assembly files are plain UTF-8 text.
@@ -104,7 +107,7 @@ ADD R1, R2, R3   # trailing comment
 - A label defines a symbolic name for an instruction address.
 - Label names are case-sensitive.
 - A label may not contain whitespace or `:`.
-- At most **one label per line** is allowed.
+- At most one label per line is allowed.
 
 Valid forms:
 ```asm
@@ -190,21 +193,46 @@ The assembler rejects programs that contain:
 
 Errors are reported with clear messages indicating the offending line.
 
+---
+
+## Virtual Machine (`vm.py`)
+
+The DBVM virtual machine executes assembled `.dmx` bytecode deterministically.
+
+### VM design highlights
+
+* **Fixed-size RAM** (256 words)
+* **8 general-purpose registers**
+* **Instruction pointer (`ip`)**
+* **Dynamic dispatch by opcode**
+* **Single-instruction execution (`step`)**
+* **Fail-fast runtime validation**
+
+### Execution model
+
+* Instructions are fetched from RAM at `ip`
+* Opcode and operands are decoded from the 32-bit word
+* Opcode dispatch selects a bound handler method
+* Control-flow instructions explicitly modify `ip`
+* All other instructions advance `ip` by one
+
+### Error handling
+
+Runtime errors (invalid opcode, memory out-of-bounds, infinite loops) raise a dedicated `VMError`, clearly separating VM faults from Python implementation bugs.
 
 ---
 
-## Possible Goals
+## Possible Extensions
 
-This project intentionally does **not** yet include:
+This project intentionally keeps scope limited. Natural next steps include:
 
-* a virtual machine / executor
-* tests or golden outputs
-* macros or pseudo-instructions
-* inline labels (`label: instr`)
-* linking or multiple source files
-* debugging symbols
-
-These may be added incrementally later.
+* instruction stepping / tracing mode
+* register and memory dumps
+* disassembler (`.dmx → .dasm`)
+* CALL/RET and stack support
+* memory-mapped I/O
+* instruction execution profiling
+* unit tests and golden outputs
 
 ---
 
@@ -212,9 +240,9 @@ These may be added incrementally later.
 
 This project exists to internalize how:
 
-* assembly languages are structured
-* labels and symbols are resolved
-* instructions are encoded into machine-readable form
+* instruction sets are designed
+* assemblers resolve symbols and encode programs
+* virtual machines execute bytecode safely
 * compile-time and runtime responsibilities differ
 
 It is a learning-focused systems project, not a production tool.
@@ -225,11 +253,11 @@ It is a learning-focused systems project, not a production tool.
 
 🚧 **Work in progress**
 
-The assembler and ISA are functional for the supported instruction set.
-Execution (VM) is planned but not yet implemented.
+The ISA, assembler, and virtual machine are functional and evolving.
+Additional tooling and debugging features may be added incrementally.
 
 ---
 
 ## License
 
-MIT License.
+MIT License
