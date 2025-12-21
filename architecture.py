@@ -1,5 +1,6 @@
 NUM_REG = 8  # number of registers
 RAM_LEN = 256  # number of words in RAM
+SIZE_LIM = 256 # size limit imm8
 
 OPS = {
     "hlt": {"code": 0x1, "fmt": "___"}, # Halt program

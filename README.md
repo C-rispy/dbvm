@@ -1,8 +1,8 @@
 # DBVM — A Minimal Assembler and Virtual Machine
 
-DBVM is a systems programming project focused on building a **simple instruction set architecture (ISA)**, a **two-pass assembler**, and a **virtual machine**.
+DBVM is a systems programming project focused on building a **instruction set architecture (ISA)**, a **two-pass assembler**, and a **virtual machine**.
 
-The goal is not performance or completeness, but conceptual clarity: understanding how assembly code is translated into machine instructions and how those instructions are executed at runtime.
+The goal is not performance or completeness, but understanding how assembly code is translated into machine instructions and how those instructions are executed at runtime.
 
 At its current stage, the project implements:
 
@@ -20,6 +20,7 @@ At its current stage, the project implements:
 ├── architecture.py   # Instruction set architecture definition
 ├── assembler.py      # Two-pass assembler (.dasm → .dmx)
 ├── vm.py             # Virtual machine / bytecode executor
+├── sample.dasm       # Example assembly program 
 ```
 
 ---
@@ -197,12 +198,12 @@ Errors are reported with clear messages indicating the offending line.
 
 ## Virtual Machine (`vm.py`)
 
-The DBVM virtual machine executes assembled `.dmx` bytecode deterministically.
+The DBVM virtual machine executes assembled `.dmx` bytecode.
 
 ### VM design highlights
 
 * **Fixed-size RAM** (256 words)
-* **8 general-purpose registers**
+* **Variable number of registers**
 * **Instruction pointer (`ip`)**
 * **Dynamic dispatch by opcode**
 * **Single-instruction execution (`step`)**
@@ -222,13 +223,43 @@ Runtime errors (invalid opcode, memory out-of-bounds, infinite loops) raise a de
 
 ---
 
+## Usage
+
+### Assemble `.dasm -> .dmx`
+
+```bash
+python assembler.py sample.dasm s_out.dmx"
+```
+
+With label table:
+
+```bash
+python assembler.py sample.dasm s_out.dmx --dump-symbols"
+```
+
+### Run Virtual Machine
+
+```bash
+python vm.py s_out.dmx output.txt
+```
+
+With step tracing:
+```bash
+python vm.py s_out.dmx output.txt --step
+```
+
+With maximum step limit:
+```bash
+python vm.py s_out.dmx output.txt --max-steps 1000
+```
+
 ## Possible Extensions
 
 This project intentionally keeps scope limited. Natural next steps include:
 
-* instruction stepping / tracing mode
-* register and memory dumps
+
 * disassembler (`.dmx → .dasm`)
+* better CLI parsing
 * CALL/RET and stack support
 * memory-mapped I/O
 * instruction execution profiling
@@ -246,15 +277,6 @@ This project exists to internalize how:
 * compile-time and runtime responsibilities differ
 
 It is a learning-focused systems project, not a production tool.
-
----
-
-## Status
-
-🚧 **Work in progress**
-
-The ISA, assembler, and virtual machine are functional and evolving.
-Additional tooling and debugging features may be added incrementally.
 
 ---
 
