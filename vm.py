@@ -67,9 +67,9 @@ class VirtualMachine:
         max_ram = max(i for (i,m) in enumerate(self._ram) if m != 0)
         low = 0
         while low <= max_ram:
-            output = f"{low:06x}: "
+            output = f"{low:08x}: "
             for i in range(COLUMNS):
-                output += f"  {self._ram[low + i]:06x}"
+                output += f"  {self._ram[low + i]:08x}"
             print(output, file=writer)
             low += COLUMNS
 
