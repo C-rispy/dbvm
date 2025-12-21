@@ -3,6 +3,7 @@
 # R1: loop limit
 ldi R0 0
 ldi R1 3
+random label:
 nop # do nothing
 # random comment
 loop: prr R0

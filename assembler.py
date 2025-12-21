@@ -154,8 +154,15 @@ class Assembler:
 
 
 def main():
-    assert len(sys.argv) == 3, f"Usage format: {sys.argv[0]} input|- output|-"
+    if "--dump-symbols" in sys.argv:
+        assert len(sys.argv) >= 4, f"Usage format: {sys.argv[0]} input|- output|- (--flag)"
+        assert sys.argv[3] == "--dump-symbols", f"Wront flag position: should be at last position"
+        dump_flag = True
+    else:
+        assert len(sys.argv) == 3, f"Usage format: {sys.argv[0]} input|- output|- (--flag)"
+        dump_flag = False
     assert sys.argv[1].endswith(".dasm") or sys.argv[1] == '-', f"Wrong input format. Needs to be .dasm file"
+    assert sys.argv[2].endswith(".dmx") or sys.argv[2] == '-', f"Wrong input format. Needs to be .dmx file"
     reader = open(sys.argv[1],"r") if sys.argv[1] != "-" else sys.stdin
     writer = open(sys.argv[2],"w") if sys.argv[2] != "-" else sys.stdout
     lines = reader.readlines()
@@ -163,6 +170,8 @@ def main():
     program = assembler.assemble(lines)
     for instruction in program:
         print(f"{instruction & 0xFFFFFFFF:08x}", file=writer)
+    if dump_flag:
+        print(sorted(assembler._labels.items(), key = lambda item: item[1]))
 
 
 if __name__ == '__main__':
