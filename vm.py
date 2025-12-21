@@ -1,6 +1,7 @@
 import sys
 from architecture import NUM_REG, OP_MASK, OP_SHIFT, OPS, RAM_LEN
 
+COLUMNS = 4
 class VirtualMachine:
     def __init__(self):
         self.initialize([])
@@ -10,10 +11,11 @@ class VirtualMachine:
         }
     
     def initialize(self,program):
-        if len(program) <= RAM_LEN:
+        self._program = program
+        if len(self._program) >= RAM_LEN:
             raise VMError("Program is too long")
         self._ram = [
-            program[i] if (i < len(program)) else 0
+            program[i] if (i < len(self._program)) else 0
             for i in range(RAM_LEN)
         ]
         self._ip = 0
@@ -53,14 +55,124 @@ class VirtualMachine:
                     raise VMError("Max steps exceeded: {max_steps}",ip = self._ip)
                 halted = self.step()
                 steps += 1
-                if halted:
+                if not halted:
                     return
         except VMError as e:
             print(f"VMError: {e}",file=writer)
             sys.exit(1)
 
-    def show(writer):
-        pass
+    def show(self, writer):
+        for i,r in enumerate(self._reg):
+            print(f"R{i:0x} = {r:08x}",file = writer)
+        max_ram = max(i for (i,m) in enumerate(self._ram) if m != 0)
+        low = 0
+        while low <= max_ram:
+            output = f"{low:06x}: "
+            for i in range(COLUMNS):
+                output += f"  {self._ram[low + i]:06x}"
+            print(output, file=writer)
+            low += COLUMNS
+
+    def _op_hlt(self,arg0,arg1,arg2):
+        return False # halted = False -> return
+
+    def _op_nop(self,arg0,arg1,arg2):
+        return True # do nothing
+
+    def _op_ldi(self,arg0,arg1,arg2):
+        r = arg0
+        v = arg1
+        self._reg[r] = v
+        return True
+
+    def _op_mov(self,arg0,arg1,arg2):
+        r1 = arg0
+        r2 = arg1
+        self._reg[r1] = self._reg[r2]
+        return True
+
+    def _op_ldm(self,arg0,arg1,arg2):
+        r = arg0
+        a = arg1
+        self._reg[r] = self._ram[a]
+        return True
+
+    def _op_stm(self,arg0,arg1,arg2):
+        a = arg0
+        r = arg1
+        self._ram[a] = self._reg[r]
+        return True
+
+    def _op_add(self,arg0,arg1,arg2):
+        rd = arg0
+        ra = arg1
+        rb = arg2
+        self._reg[rd] = self._reg[ra] + self._reg[rb]
+        return True
+
+    def _op_sub(self,arg0,arg1,arg2):
+        rd = arg0
+        ra = arg1
+        rb = arg2
+        self._reg[rd] = self._reg[ra] - self._reg[rb]
+        return True
+
+    def _op_eq(self,arg0,arg1,arg2):
+        rd = arg0
+        ra = arg1
+        rb = arg2
+        if self._reg[ra] == self._reg[rb]:
+            self._reg[rd] = 1
+        else:
+            self._reg[rd] = 0
+        return True
+
+    def _op_lt(self,arg0,arg1,arg2):
+        rd = arg0
+        ra = arg1
+        rb = arg2
+        if self._reg[ra] < self._reg[rb]:
+            self._reg[rd] = 1
+        else:
+            self._reg[rd] = 0
+        return True
+
+    def _op_jmp(self,arg0,arg1,arg2):
+        a = arg0
+        self._ip = a
+        if a >= len(self._program):
+            raise VMError("Jump address {a} invalid!",ip=self._ip)
+        return True
+
+    def _op_jz(self,arg0,arg1,arg2):
+        r = arg0
+        a = arg1
+        if self._reg[r] == 0:
+            self._ip = a
+            if a >= len(self._program):
+                raise VMError("Jump address {a} invalid!",ip=self._ip)
+        return True
+
+    def _op_jnz(self,arg0,arg1,arg2):
+        r = arg0
+        a = arg1
+        if self._reg[r] != 0:
+            self._ip = a
+            if a >= len(self._program):
+                raise VMError("Jump address {a} invalid!",ip=self._ip)
+        return True
+
+    def _op_prr(self,arg0,arg1,arg2):
+        r = arg0
+        print(self._reg[r])
+        return True
+
+    def _op_prm(self,arg0,arg1,arg2):
+        a = arg0
+        if a >= len(RAM_LEN):
+            raise VMError("RAM address {a} invalid!",ip=self._ip)
+        print(self._ram[a])
+        return True
 
 class VMError(RuntimeError):
     def __init__(self, msg, *, ip=None, instr=None):
@@ -75,7 +187,7 @@ class VMError(RuntimeError):
 
 
 def main():
-    assert len(sys.argv) >= 3, f"Usage format: {sys.argv[0]} input|- output|- (flag)"
+    assert len(sys.argv) >= 3, f"Usage format: {sys.argv[0]} input|- output|- (--flag)"
     assert sys.argv[1].endswith(".dmx") or sys.argv[1] == '-', f"Wrong input format. Needs to be .dmx file"
     reader = open(sys.argv[1],"r") if sys.argv[1] != "-" else sys.stdin
     writer = open(sys.argv[2],"w") if sys.argv[2] != "-" else sys.stdout
