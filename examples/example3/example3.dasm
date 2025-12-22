@@ -1,0 +1,59 @@
+# =========================
+# (3) Conditional logic + loop (medium) — FIXED FOR imm8
+# Tests: lt, eq, jz/jnz, loop control, arithmetic, memory load/store
+#
+# Behavior:
+#   Prints 0,1,2,3,4
+#   Then verifies i == 5 via EQ
+#   Then prints a "success marker" loaded from memory (not via LDI, since imm8)
+#
+# Expected output:
+# 0
+# 1
+# 2
+# 3
+# 4
+# 123
+# =========================
+
+# i = 0
+ldi R0, 0
+
+# limit = 5
+ldi R1, 5
+
+# constant 1
+ldi R2, 1
+
+# store success marker 123 into RAM[50]
+ldi R6, 123
+stm 50, R6
+
+loop:
+prr R0
+
+# i = i + 1
+add R0, R0, R2
+
+# R3 = (i < limit)
+lt  R3, R0, R1
+
+# if R3 != 0, loop
+jnz R3, loop
+
+# verify i == 5
+ldi R4, 5
+eq  R5, R0, R4
+
+# if R5 == 0, jump to bad
+jz  R5, bad
+
+# load success marker from RAM and print it
+ldm R6, 50
+prr R6
+hlt
+
+bad:
+ldi R6, -1
+prr R6
+hlt

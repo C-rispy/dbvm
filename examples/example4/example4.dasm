@@ -1,0 +1,30 @@
+# =========================
+# (4) CALL/RET basic (medium-long)
+# Tests: call/ret correctness, nested calls, return addresses on stack.
+# Behavior:
+# - calls f, which prints 11 and returns
+# - calls g, which calls f, then prints 22, returns
+# - main prints 33
+#
+# Expected output:
+# 11
+# 11
+# 22
+# 33
+# =========================
+call f
+call g
+ldi R0, 33
+prr R0
+hlt
+
+f:
+ldi R0, 11
+prr R0
+ret
+
+g:
+call f
+ldi R1, 22
+prr R1
+ret

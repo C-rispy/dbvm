@@ -10,6 +10,7 @@ At its current stage, the project implements:
 * a **two-pass assembler with label resolution**
 * a **virtual machine (VM)** with dynamic dispatch
 * a VM-friendly machine code format
+* CALL/RET stack support
 
 ---
 
@@ -36,9 +37,44 @@ Key properties:
 * Operands packed into higher bytes
 * Small, fixed register file (`R0 ... R7`)
 * Fixed-size RAM (256 words)
-* Deterministic execution model
 
-Instruction encodings, operand formats, and constants are defined centrally in `architecture.py`, and are consumed by both the assembler and the VM.
+### Memory layout
+
+Although RAM is physically a flat array of 256 words, it is **logically partitioned**:
+
+| Address range | Purpose |
+|--------------|---------|
+| `0x00 .. 0xBF` (0–191) | Program code and general data |
+| `0xC0 .. 0xFF` (192–255) | Call stack |
+
+This split is enforced at runtime:
+
+* `ldm` / `stm` may **not** access stack memory
+* `call` / `ret` exclusively use the stack region
+* The program length must be `< STACK_BASE`
+
+This separation models real-world code/data/stack memory conventions.
+
+---
+
+## Instruction Semantics (Selected)
+
+* **LDI**
+  * Loads a signed 8-bit immediate (`-128 .. 127`)
+  * Immediate values are two’s-complement encoded
+* **ADD / SUB**
+  * Arithmetic wraps modulo 256
+* **JMP / JZ / JNZ / CALL**
+  * Jump targets must be valid instruction addresses (`< len(program)`)
+* **CALL**
+  * Pushes `ip + 1` onto the stack
+  * Stack grows downward
+  * Errors on stack overflow
+* **RET**
+  * Pops return address from the stack
+  * Errors on stack underflow
+* **PRR / PRM**
+  * Print register or memory contents in decimal
 
 ---
 
@@ -166,6 +202,7 @@ LDI R1, 0x7F
 ### Memory Addresses
 - Memory addresses are unsigned integers in the range `0 .. 255`.
 - Addresses may be decimal or hexadecimal.
+- Stack memory (`>= STACK_BASE`) is inaccessible to `ldm/stm`
 
 Example:
 ```asm
@@ -183,17 +220,6 @@ JMP loop
 JNZ R0, done
 ```
 
-### Invalid Programs
-The assembler rejects programs that contain:
-- unknown mnemonics
-- invalid registers
-- immediates or addresses out of range
-- undefined labels
-- multiple labels on one line
-- malformed instructions
-
-Errors are reported with clear messages indicating the offending line.
-
 ---
 
 ## Virtual Machine (`vm.py`)
@@ -207,7 +233,7 @@ The DBVM virtual machine executes assembled `.dmx` bytecode.
 * **Instruction pointer (`ip`)**
 * **Dynamic dispatch by opcode**
 * **Single-instruction execution (`step`)**
-* **Fail-fast runtime validation**
+* **Explicit runtime validation**
 
 ### Execution model
 
@@ -216,6 +242,13 @@ The DBVM virtual machine executes assembled `.dmx` bytecode.
 * Opcode dispatch selects a bound handler method
 * Control-flow instructions explicitly modify `ip`
 * All other instructions advance `ip` by one
+* `call/ret` manage a downward-growing call stack
+
+### Output behavior
+
+* `prr/prm` produce runtime output
+* After execution, the VM prints register contents and a RAM dump
+* Step tracing (`--step`) prints directly to standard output
 
 ### Error handling
 
@@ -228,13 +261,13 @@ Runtime errors (invalid opcode, memory out-of-bounds, infinite loops) raise a de
 ### Assemble `.dasm -> .dmx`
 
 ```bash
-python assembler.py sample.dasm s_out.dmx"
+python assembler.py sample.dasm s_out.dmx
 ```
 
 With label table:
 
 ```bash
-python assembler.py sample.dasm s_out.dmx --dump-symbols"
+python assembler.py sample.dasm s_out.dmx --dump-symbols
 ```
 
 ### Run Virtual Machine
@@ -260,10 +293,10 @@ This project intentionally keeps scope limited. Natural next steps include:
 
 * disassembler (`.dmx → .dasm`)
 * better CLI parsing
-* CALL/RET and stack support
 * memory-mapped I/O
 * instruction execution profiling
 * unit tests and golden outputs
+* improve modular arithmetic logic
 
 ---
 
