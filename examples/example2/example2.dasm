@@ -1,0 +1,23 @@
+# =========================
+# (2) Memory round-trip (short-medium)
+# Tests: stm/ldm, prm/prr, using data addresses < STACK_BASE
+# Expected output:
+# 42
+# 42
+# -7
+# -7
+# =========================
+ldi R0, 42
+stm 20, R0
+prm 20
+
+ldm R1, 20
+prr R1
+
+ldi R2, -7
+stm 21, R2
+prm 21
+
+ldm R3, 21
+prr R3
+hlt

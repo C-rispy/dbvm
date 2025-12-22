@@ -18,7 +18,10 @@ OPS = {
     "jnz": {"code": 0xD, "fmt": "ra_"}, # jump to address if r != 0
     "prr": {"code": 0xE, "fmt": "r__"}, # print register in decimal
     "prm": {"code": 0xF, "fmt": "a__"}, # print memory[address] in decimal
+    "call": {"code": 0x10, "fmt": "a__"}, # jump, but remember return address
+    "ret": {"code": 0x11, "fmt": "___"} # return to last return address in memory
 }
 
 OP_SHIFT = 8
 OP_MASK = 0xFF
+STACK_BASE = 0xC0 # 0-191 for code, 192-255 for Stack

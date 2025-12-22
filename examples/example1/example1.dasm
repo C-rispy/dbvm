@@ -1,0 +1,12 @@
+# =========================
+# (1) Tiny smoke test (short)
+# Tests: ldi, prr, hlt, negative imm8 sign-extension
+# Expected output:
+# 127
+# -1
+# =========================
+ldi R0, 127
+prr R0
+ldi R1, -1
+prr R1
+hlt

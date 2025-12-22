@@ -1,10 +1,11 @@
 import sys
-from architecture import NUM_REG, OP_MASK, OP_SHIFT, OPS, RAM_LEN, SIZE_LIM
+from architecture import NUM_REG, OP_MASK, OP_SHIFT, OPS, RAM_LEN, SIZE_LIM, STACK_BASE
 
 COLUMNS = 4
 class VirtualMachine:
     def __init__(self):
         self.initialize([])
+        self._out = sys.stdout
         self._dispatch = {
             OPS[mnemonic]["code"]: getattr(self,"_op_" + mnemonic) for mnemonic in OPS.keys()
             if hasattr(self, "_op_" + mnemonic)
@@ -12,7 +13,7 @@ class VirtualMachine:
     
     def initialize(self,program):
         self._program = program
-        if len(self._program) >= RAM_LEN:
+        if len(self._program) >= STACK_BASE:
             raise VMError("Program is too long")
         self._ram = [
             program[i] if (i < len(self._program)) else 0
@@ -20,9 +21,12 @@ class VirtualMachine:
         ]
         self._ip = 0
         self._reg = [0] * NUM_REG
+        self._sp = RAM_LEN - 1 # stack pointer
+
+
     
     def step(self):
-        if not (0 <= self._ip < RAM_LEN):
+        if not (0 <= self._ip < len(self._program)):
             raise VMError("Instruction pointer out of bounds", ip = self._ip)
         instr, op_code, arg0, arg1, arg2 = self._fetch()
         handler = self._dispatch.get(op_code)
@@ -41,6 +45,8 @@ class VirtualMachine:
                     print(f"  R{i} : {b} -> {a}")
             print(f"ip(after)={self._ip}\n")
         return ret
+    
+
 
     def _fetch(self):
         instruction = self._ram[self._ip]
@@ -55,6 +61,7 @@ class VirtualMachine:
         return (instr, op_code, arg0, arg1, arg2)
 
     def run(self, *, max_steps=None, writer=sys.stdout):
+        self._out = writer
         steps = 0
         try:
             while True:
@@ -80,6 +87,9 @@ class VirtualMachine:
                 output += f"  {self._ram[low + i]:08x}"
             print(output, file=writer)
             low += COLUMNS
+
+
+
 
     def _op_hlt(self,arg0,arg1,arg2):
         return False # halted = False -> return
@@ -114,7 +124,7 @@ class VirtualMachine:
         a = arg1
         if r < 0 or r >= NUM_REG:
             raise VMError(f"Register {r} does not exist", ip = self._ip)
-        if a < 0 or a >= RAM_LEN:
+        if a < 0 or a >= STACK_BASE:
             raise VMError(f"RAM address {a} invalid!",ip=self._ip)
         self._reg[r] = self._ram[a]
         return True
@@ -124,7 +134,7 @@ class VirtualMachine:
         r = arg1
         if r < 0 or r >= NUM_REG:
             raise VMError(f"Register {r} does not exist", ip = self._ip)
-        if a < 0 or a >= RAM_LEN:
+        if a < 0 or a >= STACK_BASE:
             raise VMError(f"RAM address {a} invalid!",ip=self._ip)
         self._ram[a] = self._reg[r]
         return True
@@ -220,15 +230,40 @@ class VirtualMachine:
         r = arg0
         if r < 0 or r >= NUM_REG:
             raise VMError(f"Register {r} does not exist", ip = self._ip)
-        print(self._reg[r])
+        print(self._reg[r], file = self._out)
         return True
 
     def _op_prm(self,arg0,arg1,arg2):
         a = arg0
-        if a < 0 or a >= RAM_LEN:
+        if a < 0 or a >= RAM_LEN: # allow to print stack reserved as well
             raise VMError(f"RAM address {a} invalid!",ip=self._ip)
-        print(self._ram[a])
+        print(self._ram[a], file = self._out)
         return True
+    
+    def _op_call(self,arg0,arg1,arg2):
+        a = arg0
+        if a < 0 or a >= len(self._program):
+            raise VMError(f"RAM address {a} invalid for code!",ip=self._ip)
+        ret_a = self._ip + 1
+        if not STACK_BASE <= self._sp < RAM_LEN:
+            raise VMError(f"Can't load return address on stack at {self._sp}", ip = self._ip)
+        self._ram[self._sp] = ret_a
+        self._sp -= 1
+        self._ip = a
+        return True
+    
+    def _op_ret(self,arg0,arg1,arg2):
+        if self._sp == RAM_LEN - 1:
+            raise VMError("Stack underflow: RET with empty call stack", ip = self._ip) 
+        self._sp += 1
+        ret_val = self._ram[self._sp]
+        if not 0 <= ret_val < len(self._program):
+            raise VMError(f"Return address {ret_val} out of bounds", ip = self._ip)
+        self._ram[self._sp] = 0
+        self._ip = ret_val
+        return True
+
+
 
 class VMError(RuntimeError):
     def __init__(self, msg, *, ip=None, instr=None):
@@ -254,7 +289,7 @@ def main():
     vm = VirtualMachine()
     vm.initialize(program)
     if "--max-steps" in sys.argv:
-        if not len(sys.argv) > sys.argv.index("--max-steps"):
+        if len(sys.argv) <= sys.argv.index("--max-steps") + 1:
             raise VMError("Need number of steps afteer --max-steps flag")
         n = int(sys.argv[sys.argv.index("--max-steps") + 1],0)
         vm.run(max_steps=n)
